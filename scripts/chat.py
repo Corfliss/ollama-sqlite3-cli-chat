@@ -10,7 +10,6 @@ import os
 import sqlite3
 import requests
 from datetime import datetime, timezone, timedelta
-
 from config import OLLAMA_MODEL, OLLAMA_HOST, DB_PATH, CHATS_DIR, TZ_OFFSET
 from db import (
     init_db,
@@ -18,26 +17,24 @@ from db import (
     save_message,
     get_session_path,
     ensure_folder_exists,
+    get_messages_for_session,
 )
 
-def query_ollama(model, prompt):
-    """Send a prompt to Ollama and collect the streamed response."""
-    response_text = ""
+def query_ollama(model, messages):
+    """
+    Send full chat history to Ollama and get response (with memory).
+    """
     res = requests.post(
-        f"{OLLAMA_HOST}/api/generate",
-        json={"model": model, "prompt": prompt},
-        stream=True
+        f"{OLLAMA_HOST}/api/chat",
+        json={"model": model, "messages": messages}
     )
 
-    for line in res.iter_lines():
-        if line:
-            try:
-                data = json.loads(line.decode("utf-8"))
-                if "response" in data:
-                    response_text += data["response"]
-            except json.JSONDecodeError as e:
-                print("⚠️ Failed to decode line:", line)
-                continue
+    if res.status_code != 200:
+        print("❌ Failed to get response:", res.text)
+        return "Error: failed to fetch response."
+
+    data = res.json()
+    return data.get("message", {}).get("content", "").strip()
 
     return response_text.strip()
 
@@ -110,7 +107,12 @@ def start_chat(folder: str = "default", filename: str = "chat-1") -> None:
         save_message(session_id, "user", user_input)
         append_to_markdown(folder, filename, "user", user_input, timestamp)
 
-        response = query_ollama(current_model, user_input)
+        # Build message history from DB
+        db_messages = get_messages_for_session(session_id)
+        history = [{"role": m[0], "content": m[1]} for m in db_messages]
+        history.append({"role": "user", "content": user_input})
+
+        response = query_ollama(current_model, history)
         print(f"{current_model}:\n{response.strip()}")
         print("\n")
 
@@ -153,7 +155,12 @@ def continue_chat(session_id: int) -> None:
         save_message(session_id, "user", user_input)
         append_to_markdown(folder, filename, "user", user_input, timestamp)
 
-        response = query_ollama(OLLAMA_MODEL, user_input)
+        # Build message history from DB
+        db_messages = get_messages_for_session(session_id)
+        history = [{"role": m[0], "content": m[1]} for m in db_messages]
+        history.append({"role": "user", "content": user_input})
+
+        response = query_ollama(OLLAMA_MODEL, history)
         print(f"{OLLAMA_MODEL}: {response.strip()}")
 
         timestamp = current_timestamp()
@@ -166,7 +173,6 @@ def list_chats() -> None:
     """
     Print all existing chat sessions from the database.
     """
-    print("DB_PATH:", DB_PATH)
     init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
