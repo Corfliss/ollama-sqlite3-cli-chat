@@ -1,0 +1,10 @@
+ollama:
+  model: llama3.2
+  host: http://localhost:11434
+
+paths:
+  db: database/app.db
+  chats_dir: chats
+
+timezone:
+  offset: 7  # GMT+7
