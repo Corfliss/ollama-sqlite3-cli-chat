@@ -20,9 +20,10 @@ from db import (
     get_messages_history,
 )
 
-def query_ollama(model: str, messages: list[dict]) -> str:
+def query_ollama(model: str, messages: list[dict], stream: bool = True) -> str:
     """
     Send chat messages to Ollama and return the full response.
+    Optionally stream output to the terminal.
     """
     response_text = ""
     try:
@@ -31,7 +32,7 @@ def query_ollama(model: str, messages: list[dict]) -> str:
             json={
                 "model": model,
                 "messages": messages,
-                "stream": True
+                "stream": stream
             },
             stream=True
         )
@@ -40,14 +41,19 @@ def query_ollama(model: str, messages: list[dict]) -> str:
                 try:
                     data = json.loads(line.decode("utf-8"))
                     if "message" in data and "content" in data["message"]:
-                        response_text += data["message"]["content"]
-                except json.JSONDecodeError as e:
+                        content = data["message"]["content"]
+                        if stream:
+                            print(content, end="", flush=True)
+                        response_text += content
+                except json.JSONDecodeError:
                     print("⚠️ Failed to decode line:", line)
                     continue
     except requests.RequestException as e:
         print(f"❌ Request failed: {e}")
         return "[ERROR: Failed to connect to Ollama]"
 
+    if stream:
+        print()  # Ensure newline after stream
     return response_text.strip()
 
 # def query_ollama(model: str, messages: list[dict]) -> str:
@@ -96,7 +102,7 @@ def append_to_markdown(
             f.write(f"### Assistant - {timestamp} - {model}\n")
         else:
             f.write(f"### User - {timestamp}\n")
-        f.write(f"```\n{content.strip()}\n```\n\n")
+        f.write(f"\n{content.strip()}\n\n")
 
 def current_timestamp() -> str:
     """
@@ -148,14 +154,14 @@ def start_chat(folder: str = "default", filename: str = "chat-1") -> None:
         db_messages = get_messages_history(session_id)
         history = [{"role": m["role"], "content": m["content"]} for m in db_messages]
 
-        response = query_ollama(current_model, history)
-        print(f"{current_model}:\n{response}")
+        print(f"\n{current_model}:\n", end="")  # Add newline before model response
+        response = query_ollama(current_model, history, stream=True)
 
         timestamp = current_timestamp()
         save_message(session_id, "assistant", response, model=current_model)
-        append_to_markdown(
-            folder, filename, "assistant", response, timestamp, model=current_model
-        )
+        append_to_markdown(folder, filename, "assistant", response, timestamp, model=current_model)
+        print()  # Separate conversations with a blank line
+
 
 def continue_chat(session_id: int) -> None:
     """
@@ -164,10 +170,7 @@ def continue_chat(session_id: int) -> None:
     init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute(
-        "SELECT folder, filename FROM sessions WHERE id = ?",
-        (session_id,)
-    )
+    c.execute("SELECT folder, filename FROM sessions WHERE id = ?", (session_id,))
     result = c.fetchone()
     conn.close()
 
@@ -189,17 +192,16 @@ def continue_chat(session_id: int) -> None:
         save_message(session_id, "user", user_input)
         append_to_markdown(folder, filename, "user", user_input, timestamp)
 
-        # Build message history from DB
         db_messages = get_messages_history(session_id)
         history = [{"role": m["role"], "content": m["content"]} for m in db_messages]
 
-        response = query_ollama(OLLAMA_MODEL, history)
-        print(f"{OLLAMA_MODEL}:\n{response}")
+        print(f"\n{OLLAMA_MODEL}:\n", end="")  # Newline before response
+        response = query_ollama(OLLAMA_MODEL, history, stream=True)
 
         timestamp = current_timestamp()
         save_message(session_id, "assistant", response, model=OLLAMA_MODEL)
-        append_to_markdown(folder, filename, "assistant", response, timestamp,
-                           model=OLLAMA_MODEL)
+        append_to_markdown(folder, filename, "assistant", response, timestamp, model=OLLAMA_MODEL)
+        print()  # Blank line between exchanges
 
 def list_chats():
     """
@@ -217,7 +219,7 @@ def list_chats():
         print("📭 No chat sessions found.")
         return []
 
-    print("\n💾 Existing Chats:")
+    print("💾 Existing Chats:")
     for row in rows:
         print(f"[{row[0]}] {row[1]}/{row[2]} — {row[3]}")
     return rows

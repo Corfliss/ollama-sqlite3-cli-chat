@@ -27,28 +27,38 @@ def main() -> None:
         choice = input("Select an option (1–6): ").strip()
 
         if choice == '1':
+            print()
             folder = input("Enter folder name (e.g., `default`): ").strip() or "default"
             name = input("Enter file name (e.g., `chat-1`): ").strip() or "chat-1"
             start_chat(folder, name)
 
         elif choice == '2':
+            print()
             list_chats()
 
         elif choice == '3':
-            list_chats()
+            print()
+            rows = list_chats()
+            if not rows:
+                continue
+
             chat_id = input("Enter the session ID to continue: ").strip()
+            
             if chat_id.isdigit():
                 continue_chat(int(chat_id))
             else:
                 print("❌ Invalid session ID.")
 
         elif choice == '4':
+            print()
             export_all_sessions()
+            print("All sessions exported.")
 
         elif choice == '5':
+            print()
             rows = list_chats()
             if not rows:
-                return  # No chats, back to menu
+                continue
 
             chat_id = input("Enter the session ID to delete: ").strip()
 
@@ -64,6 +74,7 @@ def main() -> None:
                     print("❎ Deletion cancelled.")
 
         elif choice == '6':
+            print()
             print("👋 Exiting.")
             sys.exit(0)
 
