@@ -48,9 +48,9 @@ def export_all_sessions():
             f.write(f"# Chat: {filename}\n\n")
 
             for role, content, model, timestamp in messages:
-                header = f"### {role.capitalize()} — {timestamp}"
+                header = f"### {role.capitalize()} - {timestamp}"
                 if role == "assistant" and model:
-                    header += f" — {model}"
+                    header += f" - {model}"
                 f.write(f"{header}\n```\n{content.strip()}\n```\n\n")
 
         print(f"✅ Exported: {path}")

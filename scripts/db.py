@@ -91,53 +91,55 @@ def ensure_folder_exists(folder: str) -> None:
     path = os.path.join(CHATS_DIR, folder)
     os.makedirs(path, exist_ok=True)
 
-def get_messages_for_session(session_id: int) -> list[tuple[str, str]]:
+def get_messages_history(session_id: int) -> list[dict]:
     """
-    Return (role, content) tuples in order for a given session.
+    Retrieve the full chat history for a session.
+    Returns it in Ollama-compatible format.
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
-        SELECT role, content
-        FROM messages
+        SELECT role, content FROM messages
         WHERE session_id = ?
         ORDER BY id ASC
     ''', (session_id,))
-    messages = c.fetchall()
-    conn.close()
-    return messages
-
-def delete_chat(session_id: int) -> None:
-    """
-    Delete a chat session and all its messages from the database.
-    Also deletes the associated markdown file if exists.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    # Get session path
-    c.execute("SELECT folder, filename FROM sessions WHERE id = ?", (session_id,))
-    result = c.fetchone()
-
-    if not result:
-        print("❌ Chat not found.")
-        conn.close()
-        return
-
-    folder, filename = result
-    markdown_path = get_session_path(folder, filename)
-
-    # Delete messages and session
-    c.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
-    c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-    conn.commit()
+    rows = c.fetchall()
     conn.close()
 
-    # Delete markdown file
-    if os.path.exists(markdown_path):
-        os.remove(markdown_path)
-        print(f"🗑️ Deleted markdown: {markdown_path}")
-    else:
-        print("⚠️ Markdown file not found.")
+    return [{"role": role, "content": content} for role, content in rows]
 
-    print("✅ Chat deleted successfully.")
+# Moved the delete_chat() to chat.py. So this one is not used
+# def delete_chat(session_id: int) -> None:
+#     """
+#     Delete a chat session and all its messages from the database.
+#     Also deletes the associated markdown file if exists.
+#     """
+#     conn = sqlite3.connect(DB_PATH)
+#     c = conn.cursor()
+
+#     # Get session path
+#     c.execute("SELECT folder, filename FROM sessions WHERE id = ?", (session_id,))
+#     result = c.fetchone()
+
+#     if not result:
+#         print("❌ Chat not found.")
+#         conn.close()
+#         return
+
+#     folder, filename = result
+#     markdown_path = get_session_path(folder, filename)
+
+#     # Delete messages and session
+#     c.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+#     c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+#     conn.commit()
+#     conn.close()
+
+#     # Delete markdown file
+#     if os.path.exists(markdown_path):
+#         os.remove(markdown_path)
+#         print(f"🗑️ Deleted markdown: {markdown_path}")
+#     else:
+#         print("⚠️ Markdown file not found.")
+
+#     print("✅ Chat deleted successfully.")

@@ -10,34 +10,74 @@ import os
 import sqlite3
 import requests
 from datetime import datetime, timezone, timedelta
-from config import OLLAMA_MODEL, OLLAMA_HOST, DB_PATH, CHATS_DIR, TZ_OFFSET
+from config import OLLAMA_MODEL, OLLAMA_HOST, DB_PATH, TZ_OFFSET
 from db import (
     init_db,
     create_session,
     save_message,
     get_session_path,
     ensure_folder_exists,
-    get_messages_for_session,
+    get_messages_history,
 )
 
-def query_ollama(model, messages):
+def query_ollama(model: str, messages: list[dict]) -> str:
     """
-    Send full chat history to Ollama and get response (with memory).
+    Send chat messages to Ollama and return the full response.
     """
-    res = requests.post(
-        f"{OLLAMA_HOST}/api/chat",
-        json={"model": model, "messages": messages}
-    )
-
-    if res.status_code != 200:
-        print("❌ Failed to get response:", res.text)
-        return "Error: failed to fetch response."
-
-    data = res.json()
-    return data.get("message", {}).get("content", "").strip()
+    response_text = ""
+    try:
+        res = requests.post(
+            f"{OLLAMA_HOST}/api/chat",
+            json={
+                "model": model,
+                "messages": messages,
+                "stream": True
+            },
+            stream=True
+        )
+        for line in res.iter_lines():
+            if line:
+                try:
+                    data = json.loads(line.decode("utf-8"))
+                    if "message" in data and "content" in data["message"]:
+                        response_text += data["message"]["content"]
+                except json.JSONDecodeError as e:
+                    print("⚠️ Failed to decode line:", line)
+                    continue
+    except requests.RequestException as e:
+        print(f"❌ Request failed: {e}")
+        return "[ERROR: Failed to connect to Ollama]"
 
     return response_text.strip()
 
+# def query_ollama(model: str, messages: list[dict]) -> str:
+#     """
+#     Send a chat history to Ollama's /api/chat endpoint.
+#     """
+#     response_text = ""
+#     try:
+#         res = requests.post(
+#             f"{OLLAMA_HOST}/api/chat",
+#             json={"model": model, "messages": messages},
+#             stream=True,
+#             timeout=60
+#         )
+#         res.raise_for_status()
+
+#         for line in res.iter_lines():
+#             if not line.strip():
+#                 continue
+#             try:
+#                 data = json.loads(line.decode("utf-8"))
+#             except json.JSONDecodeError:
+#                 print("⚠️ Malformed JSON from Ollama:", line)
+#                 continue
+
+#         return response_text.strip()
+
+#     except requests.exceptions.RequestException as e:
+#         print(f"❌ Error communicating with model: {e}")
+#         return "[ERROR] Could not contact model server."
 
 def append_to_markdown(
     folder: str,
@@ -53,11 +93,10 @@ def append_to_markdown(
     path = get_session_path(folder, filename)
     with open(path, 'a') as f:
         if role == "assistant":
-            f.write(f"### Assistant — {timestamp} — {model}\n")
+            f.write(f"### Assistant - {timestamp} - {model}\n")
         else:
-            f.write(f"### User — {timestamp}\n")
+            f.write(f"### User - {timestamp}\n")
         f.write(f"```\n{content.strip()}\n```\n\n")
-
 
 def current_timestamp() -> str:
     """
@@ -66,7 +105,6 @@ def current_timestamp() -> str:
     local_offset = timedelta(hours=TZ_OFFSET)
     local_time = datetime.now(timezone(local_offset))
     return local_time.strftime('%Y.%m.%d %H:%M:%S %z')
-
 
 def start_chat(folder: str = "default", filename: str = "chat-1") -> None:
     """
@@ -90,7 +128,6 @@ def start_chat(folder: str = "default", filename: str = "chat-1") -> None:
 
     while True:
         user_input = input("You:\n").strip()
-        print("\n")
 
         if user_input.lower() in {"exit", "quit"}:
             print("👋 Chat ended.")
@@ -108,20 +145,17 @@ def start_chat(folder: str = "default", filename: str = "chat-1") -> None:
         append_to_markdown(folder, filename, "user", user_input, timestamp)
 
         # Build message history from DB
-        db_messages = get_messages_for_session(session_id)
-        history = [{"role": m[0], "content": m[1]} for m in db_messages]
-        history.append({"role": "user", "content": user_input})
+        db_messages = get_messages_history(session_id)
+        history = [{"role": m["role"], "content": m["content"]} for m in db_messages]
 
         response = query_ollama(current_model, history)
-        print(f"{current_model}:\n{response.strip()}")
-        print("\n")
+        print(f"{current_model}:\n{response}")
 
         timestamp = current_timestamp()
         save_message(session_id, "assistant", response, model=current_model)
         append_to_markdown(
             folder, filename, "assistant", response, timestamp, model=current_model
         )
-
 
 def continue_chat(session_id: int) -> None:
     """
@@ -146,7 +180,7 @@ def continue_chat(session_id: int) -> None:
           f"Type 'exit' to stop.\n")
 
     while True:
-        user_input = input("You: ").strip()
+        user_input = input("You:\n").strip()
         if user_input.lower() in {"exit", "quit"}:
             print("👋 Chat ended.")
             break
@@ -156,37 +190,133 @@ def continue_chat(session_id: int) -> None:
         append_to_markdown(folder, filename, "user", user_input, timestamp)
 
         # Build message history from DB
-        db_messages = get_messages_for_session(session_id)
-        history = [{"role": m[0], "content": m[1]} for m in db_messages]
-        history.append({"role": "user", "content": user_input})
+        db_messages = get_messages_history(session_id)
+        history = [{"role": m["role"], "content": m["content"]} for m in db_messages]
 
         response = query_ollama(OLLAMA_MODEL, history)
-        print(f"{OLLAMA_MODEL}: {response.strip()}")
+        print(f"{OLLAMA_MODEL}:\n{response}")
 
         timestamp = current_timestamp()
         save_message(session_id, "assistant", response, model=OLLAMA_MODEL)
         append_to_markdown(folder, filename, "assistant", response, timestamp,
                            model=OLLAMA_MODEL)
 
-
-def list_chats() -> None:
+def list_chats():
     """
-    Print all existing chat sessions from the database.
+    List all chat sessions from the database.
+    Returns a list of (id, folder, filename, created_at).
     """
     init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute(
-        "SELECT id, folder, filename, created_at "
-        "FROM sessions ORDER BY id DESC"
-    )
+    c.execute("SELECT id, folder, filename, created_at FROM sessions ORDER BY id")
     rows = c.fetchall()
     conn.close()
 
     if not rows:
-        print("📭 No chats found.")
-        return
+        print("📭 No chat sessions found.")
+        return []
 
     print("\n💾 Existing Chats:")
     for row in rows:
         print(f"[{row[0]}] {row[1]}/{row[2]} — {row[3]}")
+    return rows
+
+# def list_chats() -> None:
+#     """
+#     Print all existing chat sessions from the database.
+#     """
+#     init_db()
+#     conn = sqlite3.connect(DB_PATH)
+#     c = conn.cursor()
+#     c.execute(
+#         "SELECT id, folder, filename, created_at "
+#         "FROM sessions ORDER BY id DESC"
+#     )
+#     rows = c.fetchall()
+#     conn.close()
+
+#     if not rows:
+#         print("📭 No chats found.")
+#         return
+
+#     print("\n💾 Existing Chats:")
+#     for row in rows:
+#         print(f"[{row[0]}] {row[1]}/{row[2]} - {row[3]}")
+
+def delete_chat(session_id: int) -> bool:
+    """
+    Delete a chat session and its markdown file.
+    Returns True if deleted, False otherwise.
+    """
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT folder, filename FROM sessions WHERE id = ?", (session_id,))
+    result = c.fetchone()
+
+    if not result:
+        print("❌ Session ID not found.")
+        conn.close()
+        return False
+
+    folder, filename = result
+    md_path = get_session_path(folder, filename)
+
+    # Delete from DB
+    c.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+    c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    print(f"🧹 Deleted DB records for session {session_id}")
+
+    # Delete markdown file
+    if os.path.exists(md_path):
+        os.remove(md_path)
+        print(f"🗑️ Deleted markdown: {md_path}")
+
+    # Remove folder if empty
+    folder_path = os.path.dirname(md_path)
+    if os.path.isdir(folder_path) and not os.listdir(folder_path):
+        os.rmdir(folder_path)
+        print(f"🧼 Deleted empty folder: {folder_path}")
+
+    conn.close()
+    return True
+
+# def delete_chat(session_id: int):
+#     """
+#     Delete a chat session and its markdown file.
+#     """
+#     init_db()
+#     conn = sqlite3.connect(DB_PATH)
+#     c = conn.cursor()
+
+#     c.execute("SELECT folder, filename FROM sessions WHERE id = ?", (session_id,))
+#     result = c.fetchone()
+
+#     if not result:
+#         print("❌ Session ID not found.")
+#         conn.close()
+#         return
+
+#     folder, filename = result
+#     md_path = get_session_path(folder, filename)
+
+#     # Delete from DB
+#     c.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+#     c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+#     conn.commit()
+#     print(f"🧹 Deleted DB records for session {session_id}")
+
+#     # Delete markdown file
+#     if os.path.exists(md_path):
+#         os.remove(md_path)
+#         print(f"🗑️ Deleted markdown: {md_path}")
+
+#     # Remove folder if empty
+#     folder_path = os.path.dirname(md_path)
+#     if os.path.isdir(folder_path) and not os.listdir(folder_path):
+#         os.rmdir(folder_path)
+#         print(f"🧼 Deleted empty folder: {folder_path}")
+
+#     conn.close()

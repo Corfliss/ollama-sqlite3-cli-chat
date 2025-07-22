@@ -1,9 +1,8 @@
 """Main CLI menu to manage chat sessions with Ollama models."""
 
 import sys
-from chat import start_chat, list_chats, continue_chat
+from chat import start_chat, list_chats, continue_chat, delete_chat
 from export import export_all_sessions
-from db import delete_chat
 
 
 def menu() -> None:
@@ -15,7 +14,7 @@ def menu() -> None:
     print("2. List existing chats")
     print("3. Continue a chat")
     print("4. Export all chats to markdown")
-    print("5. Delete a chat")  # 🔥 Added
+    print("5. Delete a chat")
     print("6. Exit")
 
 
@@ -25,7 +24,7 @@ def main() -> None:
     """
     while True:
         menu()
-        choice = input("Select an option (1–5): ").strip()
+        choice = input("Select an option (1–6): ").strip()
 
         if choice == '1':
             folder = input("Enter folder name (e.g., `default`): ").strip() or "default"
@@ -47,16 +46,22 @@ def main() -> None:
             export_all_sessions()
 
         elif choice == '5':
-            list_chats()
+            rows = list_chats()
+            if not rows:
+                return  # No chats, back to menu
+
             chat_id = input("Enter the session ID to delete: ").strip()
-            if chat_id.isdigit():
-                confirm = input(f"⚠️ Are you sure you want to delete chat {chat_id}? (y/N): ").strip().lower()
+
+            if not chat_id:
+                print("❌ No input provided.")
+            elif not chat_id.isdigit():
+                print("❌ Invalid session ID. Must be a number.")
+            else:
+                confirm = input(f"⚠️ Are you sure you want to delete chat {chat_id}? (y/n): ").strip().lower()
                 if confirm == "y":
                     delete_chat(int(chat_id))
                 else:
                     print("❎ Deletion cancelled.")
-            else:
-                print("❌ Invalid session ID.")
 
         elif choice == '6':
             print("👋 Exiting.")

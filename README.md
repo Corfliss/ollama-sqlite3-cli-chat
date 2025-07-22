@@ -91,7 +91,6 @@ ollama-cli-chat/
 ├── db.py                   # Database logic
 ├── export.py               # Markdown export utility
 ├── interface.py            # CLI menu (formerly run.py)
-├── .env                    # Environment configuration
 ├── requirements.txt
 └── README.md
 ```
