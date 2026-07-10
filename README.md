@@ -1,13 +1,13 @@
-# Disclosure
+### Disclosure
 ```txt
 This is using ChatGPT to generate for almost all of the repository. Including the README.md, except this line.
 ```
 
-# 💻 Ollama SQLite3 CLI Chat: Local AI Chat in The CLI 💻
+# 💻 Ollama SQLite3 CLI Chat: Local AI Chat in The CLI
 
 A lightweight, terminal-based chat interface using [Ollama](https://ollama.com/) as the AI model backend, `sqlite3` for persistent chat storage, and Markdown for readable session logs.
 
-## Features
+### Features
 
 - Chat with local LLMs via Ollama (`http://localhost:11434`)
 - Chats stored in SQLite database and automatically exported to Markdown
@@ -18,7 +18,7 @@ A lightweight, terminal-based chat interface using [Ollama](https://ollama.com/)
 
 ---
 
-## Requirements
+### Requirements
 
 - Python 3.9+
 - [Ollama](https://ollama.com/) installed and running
@@ -26,7 +26,7 @@ A lightweight, terminal-based chat interface using [Ollama](https://ollama.com/)
 
 ---
 
-## Installation
+### Installation
 
 ```bash
 git clone https://github.com/Corfliss/local-memory-ollama-cli-chat.git
@@ -42,7 +42,7 @@ requests
 python-dotenv
 ```
 
-## Configuration
+### Configuration
 
 Create a .env file in the root directory to customize the settings:
 ```env
@@ -57,14 +57,14 @@ TZ_OFFSET=7
 * `DB_PATH`: Path to SQLite DB file
 * `TZ_OFFSET`: Timezone offset from GMT (e.g., 7 for GMT+7)
 
-## Running the Program:
+### Running the Program:
 
 Use the CLI menu to interact:
 ```bash
 python run.py
 ```
 
-### Menu Options:
+#### Menu Options:
 ```txt
 1. Start new chat
 2. List existing chats
@@ -73,12 +73,12 @@ python run.py
 5. Exit
 ```
 
-## Commands During Chat
+### Commands During Chat
 
 * `/switch <model>` — switch model mid-chat. Example: `/switch mistral`
 * `exit` or `quit` — end the chat
 
-## Folder Structure
+### Folder Structure
 ```txt
 ollama-cli-chat/
 ├── chats/                  # Markdown logs organized by folder
@@ -94,25 +94,25 @@ ollama-cli-chat/
 └── README.md
 ```
 
-## Example Chat Output (Markdown)
+### Example Chat Output (Markdown)
 
-### Chat: example-chat
+#### Chat: example-chat
 
 > Started: 2025.07.14 23:45:02 +0700
 
 ---
 
-#### User — 2025.07.14 23:45:02 +0700
+##### User — 2025.07.14 23:45:02 +0700
 ```
 How do I write a recursive function in Python?
 ```
 
-#### Assistant — 2025.07.14 23:45:05 +0700 — llama3
+##### Assistant — 2025.07.14 23:45:05 +0700 — llama3
 ```
 A recursive function is one that calls itself. Here's an example...
 ```
 
-## Dev Notes
+### Dev Notes
 
 - All messages are stored in the database and reflected in Markdown in real time
 - Changing models mid-conversation updates both markdown and database with model info
