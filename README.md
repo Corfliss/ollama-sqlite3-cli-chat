@@ -59,7 +59,7 @@ TZ_OFFSET=7
 
 ### Running the Program:
 
-Use the CLI menu to interact:
+Use the CLI menu to interact on `/scripts`:
 ```bash
 python run.py
 ```
