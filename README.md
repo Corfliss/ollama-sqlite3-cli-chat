@@ -1,7 +1,6 @@
 # Disclosure
 ```txt
-This is using ChatGPT to generate for almost all of the repository. Including the README.md, except this line. 
-Consider booing me at my social media for the lazy AI usage, as my brain is on a lot of pain and burnout at the time of writing this after doing a lot for bachelor thesis lul.
+This is using ChatGPT to generate for almost all of the repository. Including the README.md, except this line.
 ```
 
 # 🧠 Local Memory Ollama CLI Chat
